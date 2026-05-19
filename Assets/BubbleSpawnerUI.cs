@@ -20,7 +20,7 @@ public class BubbleSpawnerUI : MonoBehaviour
 
     void Update()
     {
-        if (!GameObject.FindObjectOfType<GameManagerUI>()) return;
+        if (GameManagerUI.Instance == null || !GameManagerUI.Instance.gameActive) return;
 
         timer += Time.deltaTime;
         if (timer >= spawnInterval)
@@ -37,7 +37,7 @@ public class BubbleSpawnerUI : MonoBehaviour
         GameObject bubble = Instantiate(bubblePrefab, spawnArea);
         RectTransform rt = bubble.GetComponent<RectTransform>();
 
-        // posição aleatória na largura da tela
+        // posiï¿½ï¿½o aleatï¿½ria na largura da tela
         float randomX = Random.Range(-spawnArea.rect.width / 2f, spawnArea.rect.width / 2f);
         rt.anchoredPosition = new Vector2(randomX, -spawnArea.rect.height / 2f - 100f);
 

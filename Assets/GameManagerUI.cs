@@ -14,6 +14,10 @@ public class GameManagerUI : MonoBehaviour
     [Header("UI Image")]
     public Image targetImage;
 
+    [Header("Contagem Regressiva")]
+    [SerializeField] private GameObject      countdownPanel;
+    [SerializeField] private TextMeshProUGUI countdownText;
+
     public static GameManagerUI Instance;
 
     public TextMeshProUGUI timerText;
@@ -24,7 +28,10 @@ public class GameManagerUI : MonoBehaviour
 
     private float timeRemaining = 30f;
     public int score = 0;
-    private bool gameActive = true;
+    public bool gameActive    = false;
+    private bool _gameStarted = false;
+    private float _countdown  = 3f;
+    private const float CountdownDuration = 3f;
 
     void Awake() => Instance = this;
 
@@ -36,19 +43,29 @@ public class GameManagerUI : MonoBehaviour
             return;
         }
 
-        // Escolhe aleatoriamente entre 0 e 1
         int randomIndex = Random.Range(0, 2);
-
         targetImage.sprite = (randomIndex == 0) ? sprite1 : sprite2;
     }
 
     void Start()
     {
         AssignRandomSprite();
+        timerText.text = Mathf.CeilToInt(timeRemaining).ToString();
+        scoreText.text = "0";
+        if (countdownText != null)
+            countdownText.text = "Mostre as duas mãos\npara começar";
+        if (countdownPanel != null)
+            countdownPanel.SetActive(true);
     }
 
     void Update()
     {
+        if (!_gameStarted)
+        {
+            HandleCountdown();
+            return;
+        }
+
         if (!gameActive) return;
 
         timeRemaining -= Time.deltaTime;
@@ -81,6 +98,39 @@ public class GameManagerUI : MonoBehaviour
 #endif
     }
 
+    void HandleCountdown()
+    {
+        bool twoHands = HandTracker.Instance != null && HandTracker.Instance.HandCount >= 2;
+
+#if UNITY_EDITOR
+        // No Editor, Espaço inicia o jogo sem precisar do hand tracker
+        if (Input.GetKeyDown(KeyCode.Space)) twoHands = true;
+#endif
+
+        if (!twoHands)
+        {
+            _countdown = CountdownDuration;
+            if (countdownText != null)
+                countdownText.text = "Mostre as duas mãos\npara começar";
+            return;
+        }
+
+        _countdown -= Time.deltaTime;
+
+        if (countdownText != null)
+        {
+            int secs = Mathf.CeilToInt(_countdown);
+            countdownText.text = secs > 0 ? secs.ToString() : "";
+        }
+
+        if (_countdown <= 0f)
+        {
+            _gameStarted = true;
+            gameActive   = true;
+            if (countdownPanel != null)
+                countdownPanel.SetActive(false);
+        }
+    }
 
     void HandleTouch(Vector2 screenPosition)
     {
