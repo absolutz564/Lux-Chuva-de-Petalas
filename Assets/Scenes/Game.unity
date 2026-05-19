@@ -997,9 +997,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   listenPort: 5005
-  skeletonColorOpen: {r: 0, g: 1, b: 1, a: 1}
-  skeletonColorClosed: {r: 0, g: 1, b: 0, a: 1}
-  lineWidth: 0.04
+  gloveColorOpen: {r: 0, g: 0, b: 0, a: 0.65}
+  gloveColorClosed: {r: 0.3, g: 0, b: 0.5, a: 0.8}
+  boneHalfWidth: 0.12
+  jointRadius: 0.05
+  circleSegments: 10
 --- !u!4 &792048562
 Transform:
   m_ObjectHideFlags: 0
@@ -1515,6 +1517,7 @@ MonoBehaviour:
   gameOverPanelLoss: {fileID: 611886710}
   Spawner: {fileID: 932564226}
   score: 0
+  gameActive: 0
 --- !u!4 &1227938702
 Transform:
   m_ObjectHideFlags: 0

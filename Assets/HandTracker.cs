@@ -17,12 +17,13 @@ public class HandTracker : MonoBehaviour
     [Header("Network")]
     [SerializeField] private int listenPort = 5005;
 
-    [Header("Skeleton")]
-    [SerializeField] private Color skeletonColorOpen   = Color.cyan;
-    [SerializeField] private Color skeletonColorClosed = Color.green;
-    [SerializeField] private float lineWidth = 0.04f;
+    [Header("Glove")]
+    [SerializeField] private Color gloveColorOpen   = new Color(0f,   0f,   0f,   0.65f);
+    [SerializeField] private Color gloveColorClosed = new Color(0.3f, 0f,   0.5f, 0.80f);
+    [SerializeField] private float boneHalfWidth    = 0.12f;
+    [SerializeField] private float jointRadius      = 0.15f;
+    [SerializeField] private int   circleSegments   = 10;
 
-    // MediaPipe connections entre os 21 landmarks
     private static readonly int[][] Connections =
     {
         new[]{0,1},  new[]{1,2},  new[]{2,3},  new[]{3,4},
@@ -37,7 +38,6 @@ public class HandTracker : MonoBehaviour
 
     public int HandCount => _handsWorld.Count;
 
-    /// Retorna o centro da palma em world-space para o índice de mão indicado.
     public Vector3 GetPalmCenter(int handIndex)
     {
         if (handIndex >= _handsWorld.Count) return Vector3.zero;
@@ -45,16 +45,12 @@ public class HandTracker : MonoBehaviour
         return (h[0] + h[5] + h[9] + h[13] + h[17]) / 5f;
     }
 
-    /// Retorna true quando a mão está fechada em punho.
-    /// Detecta com produto escalar em relação à direção da palma,
-    /// funcionando independentemente da inclinação da mão.
     public bool IsHandClosed(int handIndex)
     {
         if (handIndex >= _rawLandmarks.Count) return false;
         var lm = _rawLandmarks[handIndex];
         if (lm.Count < 21) return false;
 
-        // Direção da palma: pulso (0) → articulação do dedo médio (9)
         float pdx = lm[9].x - lm[0].x;
         float pdy = lm[9].y - lm[0].y;
         float plen = Mathf.Sqrt(pdx * pdx + pdy * pdy);
@@ -62,8 +58,6 @@ public class HandTracker : MonoBehaviour
         pdx /= plen;
         pdy /= plen;
 
-        // Dedo fechado: ponta (tip) está "atrás" da segunda articulação (pip)
-        // em relação à direção da palma → produto escalar (tip-pip)·palmDir < 0
         int[] tips = { 8, 12, 16, 20 };
         int[] pips = { 6, 10, 14, 18 };
 
@@ -78,8 +72,6 @@ public class HandTracker : MonoBehaviour
         return closedFingers >= 3;
     }
 
-    /// Retorna true nos 0.2 s seguintes ao momento em que a mão fechou.
-    /// Use este método para exigir o gesto de fechar, não o estado constante.
     public bool IsHandJustClosed(int handIndex)
     {
         if (handIndex >= _handJustClosedTimer.Length) return false;
@@ -88,21 +80,27 @@ public class HandTracker : MonoBehaviour
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
-    private readonly List<LineRenderer[]>        _skeletons    = new List<LineRenderer[]>();
-    private readonly List<List<Vector3>>         _handsWorld   = new List<List<Vector3>>();
-    private readonly List<List<LandmarkPoint>>   _rawLandmarks = new List<List<LandmarkPoint>>();
+    private struct HandGlove
+    {
+        public MeshRenderer renderer;
+        public Mesh         mesh;
+    }
 
-    private UdpClient _udp;
-    private Thread    _thread;
-    private string    _pendingJson;
+    private HandGlove[]                        _gloves;
+    private readonly List<List<Vector3>>       _handsWorld   = new List<List<Vector3>>();
+    private readonly List<List<LandmarkPoint>> _rawLandmarks = new List<List<LandmarkPoint>>();
+
+    private UdpClient    _udp;
+    private Thread       _thread;
+    private string       _pendingJson;
     private readonly object _lock = new object();
 
-    private float _lastHandTime  = -99f;
+    private float _lastHandTime = -99f;
     private const float HandTimeout = 0.5f;
 
-    private bool[]  _prevHandClosed       = new bool[2];
-    private float[] _handJustClosedTimer  = new float[2];
-    private const float GrabGracePeriod   = 0.20f;
+    private bool[]  _prevHandClosed      = new bool[2];
+    private float[] _handJustClosedTimer = new float[2];
+    private const float GrabGracePeriod  = 0.20f;
 
     private int   _packetsReceived;
     private float _nextLogTime;
@@ -115,7 +113,7 @@ public class HandTracker : MonoBehaviour
 
     private void Start()
     {
-        CreateSkeletons(2);
+        CreateGloves(2);
         StartUdp();
     }
 
@@ -182,7 +180,7 @@ public class HandTracker : MonoBehaviour
         }
 
         bool handsVisible = HandCount > 0 && Time.time - _lastHandTime < HandTimeout;
-        RenderSkeletons(handsVisible);
+        RenderGloves(handsVisible);
     }
 
     // ── Parsing ───────────────────────────────────────────────────────────────
@@ -208,7 +206,6 @@ public class HandTracker : MonoBehaviour
                 var pts = new List<Vector3>(21);
                 foreach (var lm in hand.landmarks)
                 {
-                    // Flip Y: MediaPipe y=0 é topo da imagem, Unity y=0 é base da tela.
                     float sx = lm.x * Screen.width;
                     float sy = (1f - lm.y) * Screen.height;
                     Vector3 world = Camera.main.ScreenToWorldPoint(new Vector3(sx, sy, 10f));
@@ -224,64 +221,106 @@ public class HandTracker : MonoBehaviour
         }
     }
 
-    // ── Skeleton rendering ────────────────────────────────────────────────────
+    // ── Glove rendering ───────────────────────────────────────────────────────
 
-    private void CreateSkeletons(int maxHands)
+    private void CreateGloves(int maxHands)
     {
+        _gloves = new HandGlove[maxHands];
         for (int h = 0; h < maxHands; h++)
         {
-            var lines = new LineRenderer[Connections.Length];
-            for (int i = 0; i < Connections.Length; i++)
-            {
-                var go = new GameObject($"Skel_H{h}_L{i}");
-                go.transform.SetParent(transform);
+            var go = new GameObject($"Glove_H{h}");
+            go.transform.SetParent(transform);
 
-                var lr = go.AddComponent<LineRenderer>();
-                lr.positionCount = 2;
-                lr.startWidth    = lineWidth;
-                lr.endWidth      = lineWidth;
-                lr.useWorldSpace = true;
-                lr.material      = new Material(Shader.Find("Sprites/Default"));
-                lr.startColor    = skeletonColorOpen;
-                lr.endColor      = skeletonColorOpen;
-                lr.sortingOrder  = 10;
-                lr.enabled       = false;
-                lines[i] = lr;
-            }
-            _skeletons.Add(lines);
+            var mf = go.AddComponent<MeshFilter>();
+            var mr = go.AddComponent<MeshRenderer>();
+            mr.material             = new Material(Shader.Find("Sprites/Default"));
+            mr.material.color       = gloveColorOpen;
+            mr.sortingOrder         = 10;
+            mr.enabled              = false;
+
+            var mesh = new Mesh { name = $"GloveMesh_H{h}" };
+            mf.mesh = mesh;
+
+            _gloves[h] = new HandGlove { renderer = mr, mesh = mesh };
         }
     }
 
-    private void RenderSkeletons(bool handsVisible)
+    private void RenderGloves(bool handsVisible)
     {
-        for (int h = 0; h < _skeletons.Count; h++)
+        for (int h = 0; h < _gloves.Length; h++)
         {
-            bool show  = handsVisible && h < _handsWorld.Count;
-            var  lines = _skeletons[h];
+            bool show = handsVisible && h < _handsWorld.Count;
+            _gloves[h].renderer.enabled = show;
 
-            Color c = (show && IsHandClosed(h)) ? skeletonColorClosed : skeletonColorOpen;
+            if (!show) { _gloves[h].mesh.Clear(); continue; }
 
-            for (int i = 0; i < lines.Length; i++)
+            _gloves[h].renderer.material.color = IsHandClosed(h) ? gloveColorClosed : gloveColorOpen;
+            BuildGloveMesh(_gloves[h].mesh, _handsWorld[h]);
+        }
+    }
+
+    private void BuildGloveMesh(Mesh mesh, List<Vector3> pts)
+    {
+        var verts = new List<Vector3>();
+        var tris  = new List<int>();
+
+        // Segmentos: retângulo orientado ao longo de cada osso
+        foreach (var conn in Connections)
+        {
+            int ai = conn[0], bi = conn[1];
+            if (ai >= pts.Count || bi >= pts.Count) continue;
+
+            Vector3 a   = pts[ai];
+            Vector3 b   = pts[bi];
+            Vector3 dir = b - a;
+            if (dir.magnitude < 0.001f) continue;
+            dir.Normalize();
+            Vector3 perp = new Vector3(-dir.y, dir.x, 0f) * boneHalfWidth;
+
+            int i = verts.Count;
+            verts.Add(a - perp);   // 0
+            verts.Add(a + perp);   // 1
+            verts.Add(b + perp);   // 2
+            verts.Add(b - perp);   // 3
+
+            tris.Add(i);   tris.Add(i + 1); tris.Add(i + 2);
+            tris.Add(i);   tris.Add(i + 2); tris.Add(i + 3);
+        }
+
+        // Articulações: círculo em cada landmark
+        foreach (var pt in pts)
+        {
+            int center = verts.Count;
+            verts.Add(new Vector3(pt.x, pt.y, 0f));
+
+            for (int s = 0; s < circleSegments; s++)
             {
-                lines[i].enabled = show;
-                if (!show) continue;
+                float angle = s * Mathf.PI * 2f / circleSegments;
+                verts.Add(new Vector3(
+                    pt.x + Mathf.Cos(angle) * jointRadius,
+                    pt.y + Mathf.Sin(angle) * jointRadius,
+                    0f));
+            }
 
-                var hand = _handsWorld[h];
-                int a = Connections[i][0], b = Connections[i][1];
-                if (a < hand.Count && b < hand.Count)
-                {
-                    lines[i].SetPosition(0, hand[a]);
-                    lines[i].SetPosition(1, hand[b]);
-                    lines[i].startColor = c;
-                    lines[i].endColor   = c;
-                }
+            for (int s = 0; s < circleSegments; s++)
+            {
+                tris.Add(center);
+                tris.Add(center + 1 + s);
+                tris.Add(center + 1 + (s + 1) % circleSegments);
             }
         }
+
+        mesh.Clear();
+        mesh.SetVertices(verts);
+        mesh.SetTriangles(tris, 0);
     }
 
     private void OnDestroy()
     {
         _thread?.Abort();
         _udp?.Close();
+        if (_gloves != null)
+            foreach (var g in _gloves)
+                if (g.mesh != null) Destroy(g.mesh);
     }
 }
