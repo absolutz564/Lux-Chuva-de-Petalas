@@ -20,19 +20,21 @@ public class HandTracker : MonoBehaviour
     [Header("Glove")]
     [SerializeField] private Color gloveColorOpen   = new Color(0f,   0f,   0f,   0.65f);
     [SerializeField] private Color gloveColorClosed = new Color(0.3f, 0f,   0.5f, 0.80f);
-    [SerializeField] private float boneHalfWidth    = 0.12f;
-    [SerializeField] private float jointRadius      = 0.15f;
-    [SerializeField] private int   circleSegments   = 10;
+    [SerializeField] private float fingerHalfWidth  = 0.15f;
+    [SerializeField] private int   capSegments      = 8;
 
-    private static readonly int[][] Connections =
+    // cada dedo: base → pip → dip → tip
+    private static readonly int[][] FingerChains =
     {
-        new[]{0,1},  new[]{1,2},  new[]{2,3},  new[]{3,4},
-        new[]{0,5},  new[]{5,6},  new[]{6,7},  new[]{7,8},
-        new[]{0,9},  new[]{9,10}, new[]{10,11},new[]{11,12},
-        new[]{0,13}, new[]{13,14},new[]{14,15},new[]{15,16},
-        new[]{0,17}, new[]{17,18},new[]{18,19},new[]{19,20},
-        new[]{5,9},  new[]{9,13}, new[]{13,17}
+        new[] {  1,  2,  3,  4 },   // polegar
+        new[] {  5,  6,  7,  8 },   // indicador
+        new[] {  9, 10, 11, 12 },   // médio
+        new[] { 13, 14, 15, 16 },   // anelar
+        new[] { 17, 18, 19, 20 },   // mindinho
     };
+
+    // contorno da palma: pulso + base de cada dedo
+    private static readonly int[] PalmRing = { 0, 1, 5, 9, 13, 17 };
 
     // ── Dados públicos ────────────────────────────────────────────────────────
 
@@ -173,10 +175,10 @@ public class HandTracker : MonoBehaviour
         if (Time.time >= _nextLogTime)
         {
             _nextLogTime = Time.time + 3f;
-            string fistInfo = "";
+            string info = "";
             for (int h = 0; h < HandCount; h++)
-                fistInfo += $" Mão{h}:{(IsHandClosed(h) ? "PUNHO" : "aberta")}";
-            Debug.Log($"[HandTracker] Pacotes: {_packetsReceived} | Mãos: {HandCount}{fistInfo}");
+                info += $" Mão{h}:{(IsHandClosed(h) ? "PUNHO" : "aberta")}";
+            Debug.Log($"[HandTracker] Pacotes: {_packetsReceived} | Mãos: {HandCount}{info}");
         }
 
         bool handsVisible = HandCount > 0 && Time.time - _lastHandTime < HandTimeout;
@@ -233,10 +235,10 @@ public class HandTracker : MonoBehaviour
 
             var mf = go.AddComponent<MeshFilter>();
             var mr = go.AddComponent<MeshRenderer>();
-            mr.material             = new Material(Shader.Find("Sprites/Default"));
-            mr.material.color       = gloveColorOpen;
-            mr.sortingOrder         = 10;
-            mr.enabled              = false;
+            mr.material       = new Material(Shader.Find("Sprites/Default"));
+            mr.material.color = gloveColorOpen;
+            mr.sortingOrder   = 10;
+            mr.enabled        = false;
 
             var mesh = new Mesh { name = $"GloveMesh_H{h}" };
             mf.mesh = mesh;
@@ -264,55 +266,102 @@ public class HandTracker : MonoBehaviour
         var verts = new List<Vector3>();
         var tris  = new List<int>();
 
-        // Segmentos: retângulo orientado ao longo de cada osso
-        foreach (var conn in Connections)
-        {
-            int ai = conn[0], bi = conn[1];
-            if (ai >= pts.Count || bi >= pts.Count) continue;
+        FillPalm(pts, verts, tris);
 
-            Vector3 a   = pts[ai];
-            Vector3 b   = pts[bi];
-            Vector3 dir = b - a;
-            if (dir.magnitude < 0.001f) continue;
-            dir.Normalize();
-            Vector3 perp = new Vector3(-dir.y, dir.x, 0f) * boneHalfWidth;
-
-            int i = verts.Count;
-            verts.Add(a - perp);   // 0
-            verts.Add(a + perp);   // 1
-            verts.Add(b + perp);   // 2
-            verts.Add(b - perp);   // 3
-
-            tris.Add(i);   tris.Add(i + 1); tris.Add(i + 2);
-            tris.Add(i);   tris.Add(i + 2); tris.Add(i + 3);
-        }
-
-        // Articulações: círculo em cada landmark
-        foreach (var pt in pts)
-        {
-            int center = verts.Count;
-            verts.Add(new Vector3(pt.x, pt.y, 0f));
-
-            for (int s = 0; s < circleSegments; s++)
-            {
-                float angle = s * Mathf.PI * 2f / circleSegments;
-                verts.Add(new Vector3(
-                    pt.x + Mathf.Cos(angle) * jointRadius,
-                    pt.y + Mathf.Sin(angle) * jointRadius,
-                    0f));
-            }
-
-            for (int s = 0; s < circleSegments; s++)
-            {
-                tris.Add(center);
-                tris.Add(center + 1 + s);
-                tris.Add(center + 1 + (s + 1) % circleSegments);
-            }
-        }
+        foreach (var chain in FingerChains)
+            FillFinger(pts, chain, verts, tris);
 
         mesh.Clear();
         mesh.SetVertices(verts);
         mesh.SetTriangles(tris, 0);
+    }
+
+    // Palma preenchida: fan do centroide aos landmarks expandidos para fora
+    private void FillPalm(List<Vector3> pts, List<Vector3> verts, List<int> tris)
+    {
+        Vector3 centroid = Vector3.zero;
+        foreach (int idx in PalmRing)
+            centroid += pts[idx];
+        centroid /= PalmRing.Length;
+
+        int center = verts.Count;
+        verts.Add(new Vector3(centroid.x, centroid.y, 0f));
+
+        foreach (int idx in PalmRing)
+        {
+            Vector3 p   = pts[idx];
+            Vector3 dir = p - centroid;
+            float   mag = dir.magnitude;
+            if (mag > 0.001f)
+                dir = (dir / mag) * (mag + fingerHalfWidth);
+            verts.Add(new Vector3(centroid.x + dir.x, centroid.y + dir.y, 0f));
+        }
+
+        for (int i = 0; i < PalmRing.Length; i++)
+        {
+            tris.Add(center);
+            tris.Add(center + 1 + i);
+            tris.Add(center + 1 + (i + 1) % PalmRing.Length);
+        }
+    }
+
+    // Dedo preenchido: faixa de quads + semicírculo na ponta
+    private void FillFinger(List<Vector3> pts, int[] chain, List<Vector3> verts, List<int> tris)
+    {
+        var leftEdge  = new Vector3[chain.Length];
+        var rightEdge = new Vector3[chain.Length];
+
+        for (int i = 0; i < chain.Length; i++)
+        {
+            Vector3 pt  = pts[chain[i]];
+            Vector3 dir = Vector3.zero;
+
+            if (i > 0)              dir += (pt - pts[chain[i - 1]]).normalized;
+            if (i < chain.Length-1) dir += (pts[chain[i + 1]] - pt).normalized;
+            if (dir.magnitude < 0.001f)
+                dir = i > 0 ? (pt - pts[chain[i - 1]]).normalized : Vector3.up;
+            dir.Normalize();
+
+            Vector3 perp = new Vector3(-dir.y, dir.x, 0f) * fingerHalfWidth;
+            leftEdge[i]  = new Vector3(pt.x - perp.x, pt.y - perp.y, 0f);
+            rightEdge[i] = new Vector3(pt.x + perp.x, pt.y + perp.y, 0f);
+        }
+
+        // Faixa de quads ao longo do dedo
+        for (int i = 0; i < chain.Length - 1; i++)
+        {
+            int b = verts.Count;
+            verts.Add(leftEdge[i]);
+            verts.Add(rightEdge[i]);
+            verts.Add(rightEdge[i + 1]);
+            verts.Add(leftEdge[i + 1]);
+
+            tris.Add(b);   tris.Add(b + 1); tris.Add(b + 2);
+            tris.Add(b);   tris.Add(b + 2); tris.Add(b + 3);
+        }
+
+        // Semicírculo na ponta: +perp → +dir → -perp
+        int     last     = chain.Length - 1;
+        Vector3 tip      = pts[chain[last]];
+        Vector3 tipDir   = (tip - pts[chain[last - 1]]).normalized;
+        Vector3 tipPerp  = new Vector3(-tipDir.y, tipDir.x, 0f);
+
+        int capCenter = verts.Count;
+        verts.Add(new Vector3(tip.x, tip.y, 0f));
+
+        for (int s = 0; s <= capSegments; s++)
+        {
+            float   a      = Mathf.PI * s / capSegments;
+            Vector3 offset = (tipPerp * Mathf.Cos(a) + tipDir * Mathf.Sin(a)) * fingerHalfWidth;
+            verts.Add(new Vector3(tip.x + offset.x, tip.y + offset.y, 0f));
+        }
+
+        for (int s = 0; s < capSegments; s++)
+        {
+            tris.Add(capCenter);
+            tris.Add(capCenter + 1 + s);
+            tris.Add(capCenter + 2 + s);
+        }
     }
 
     private void OnDestroy()

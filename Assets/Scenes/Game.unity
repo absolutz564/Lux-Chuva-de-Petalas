@@ -997,11 +997,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   listenPort: 5005
-  gloveColorOpen: {r: 0, g: 0, b: 0, a: 0.65}
+  gloveColorOpen: {r: 0, g: 0, b: 0, a: 0.8509804}
   gloveColorClosed: {r: 0.3, g: 0, b: 0.5, a: 0.8}
-  boneHalfWidth: 0.12
-  jointRadius: 0.05
-  circleSegments: 10
+  fingerHalfWidth: 0.09
+  capSegments: 8
 --- !u!4 &792048562
 Transform:
   m_ObjectHideFlags: 0
