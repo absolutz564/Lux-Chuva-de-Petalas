@@ -29,9 +29,11 @@ public class GameManagerUI : MonoBehaviour
     private float timeRemaining = 30f;
     public int score = 0;
     public bool gameActive    = false;
-    private bool _gameStarted = false;
-    private float _countdown  = 3f;
-    private const float CountdownDuration = 3f;
+    private bool  _gameStarted     = false;
+    private float _countdown       = 3f;
+    private const float CountdownDuration  = 3f;
+    private float _twoHandsTimer   = 0f;
+    private const float TwoHandsDebounce = 0.3f;
 
     void Awake() => Instance = this;
 
@@ -103,11 +105,15 @@ public class GameManagerUI : MonoBehaviour
         bool twoHands = HandTracker.Instance != null && HandTracker.Instance.HandCount >= 2;
 
 #if UNITY_EDITOR
-        // No Editor, Espaço inicia o jogo sem precisar do hand tracker
         if (Input.GetKeyDown(KeyCode.Space)) twoHands = true;
 #endif
 
-        if (!twoHands)
+        if (twoHands)
+            _twoHandsTimer += Time.deltaTime;
+        else
+            _twoHandsTimer = 0f;
+
+        if (_twoHandsTimer < TwoHandsDebounce)
         {
             _countdown = CountdownDuration;
             if (countdownText != null)

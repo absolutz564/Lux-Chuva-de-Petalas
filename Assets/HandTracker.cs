@@ -40,6 +40,12 @@ public class HandTracker : MonoBehaviour
 
     public int HandCount => _handsWorld.Count;
 
+    public List<Vector3> GetHandPoints(int handIndex)
+    {
+        if (handIndex >= _handsWorld.Count) return null;
+        return _handsWorld[handIndex];
+    }
+
     public Vector3 GetPalmCenter(int handIndex)
     {
         if (handIndex >= _handsWorld.Count) return Vector3.zero;
@@ -104,8 +110,6 @@ public class HandTracker : MonoBehaviour
     private float[] _handJustClosedTimer = new float[2];
     private const float GrabGracePeriod  = 0.20f;
 
-    private int   _packetsReceived;
-    private float _nextLogTime;
 
     private void Awake()
     {
@@ -160,7 +164,7 @@ public class HandTracker : MonoBehaviour
             if (_pendingJson != null) { json = _pendingJson; _pendingJson = null; }
         }
 
-        if (json != null) { _packetsReceived++; ParseHands(json); }
+        if (json != null) ParseHands(json);
 
         for (int h = 0; h < _prevHandClosed.Length; h++)
         {
@@ -170,15 +174,6 @@ public class HandTracker : MonoBehaviour
             else if (_handJustClosedTimer[h] > 0f)
                 _handJustClosedTimer[h] -= Time.deltaTime;
             _prevHandClosed[h] = closed;
-        }
-
-        if (Time.time >= _nextLogTime)
-        {
-            _nextLogTime = Time.time + 3f;
-            string info = "";
-            for (int h = 0; h < HandCount; h++)
-                info += $" Mão{h}:{(IsHandClosed(h) ? "PUNHO" : "aberta")}";
-            Debug.Log($"[HandTracker] Pacotes: {_packetsReceived} | Mãos: {HandCount}{info}");
         }
 
         bool handsVisible = HandCount > 0 && Time.time - _lastHandTime < HandTimeout;
