@@ -16,7 +16,7 @@ public class BubbleUI : MonoBehaviour
 
     [Header("Prefabs")]
     public GameObject scorePopupPrefab; // prefab do +1/+2 (UI Image/Text)
-    public GameObject explosionPrefab;  // opcional: animaÿÿo de explosÿo (UI/particle)
+    public GameObject explosionPrefab;  // opcional: animaï¿½ï¿½o de explosï¿½o (UI/particle)
     public Sprite spriteScoreMore1;
     public Sprite spriteScoreMore2;
     public Sprite spriteScoreMore3;
@@ -25,7 +25,7 @@ public class BubbleUI : MonoBehaviour
     public Sprite spriteScoreLess3;
     // Runtime
     private RectTransform rt;
-    private RectTransform spawnParent; // painel/canvas onde as bolhas sÿo criadas
+    private RectTransform spawnParent; // painel/canvas onde as bolhas sï¿½o criadas
 
     [Header("Sprites")]
     public Sprite sprite1;
@@ -34,12 +34,12 @@ public class BubbleUI : MonoBehaviour
     [Header("UI Image")]
     public Image targetImage;
 
-    // Chame esta funÿÿo para trocar o sprite aleatoriamente
+    // Chame esta funï¿½ï¿½o para trocar o sprite aleatoriamente
     public void AssignRandomSprite()
     {
         if (targetImage == null)
         {
-            Debug.LogWarning("Target Image nÿo atribuÿda!");
+            Debug.LogWarning("Target Image nï¿½o atribuï¿½da!");
             return;
         }
 
@@ -55,7 +55,7 @@ public class BubbleUI : MonoBehaviour
 
         if (spawnParent == null && rt.parent is RectTransform p) spawnParent = p;
 
-        // se productImage nÿo foi setado, tenta achar um filho Image (diferente da bolha)
+        // se productImage nï¿½o foi setado, tenta achar um filho Image (diferente da bolha)
         if (productImage == null)
         {
             var imgs = GetComponentsInChildren<Image>(true);
@@ -167,7 +167,7 @@ public class BubbleUI : MonoBehaviour
             }
         }
 
-        return null; // ou algum sprite padrÿo
+        return null; // ou algum sprite padrï¿½o
     }
 
 
@@ -178,11 +178,11 @@ public class BubbleUI : MonoBehaviour
 
     public void BurstAndRelease()
     {
-        // 1) adicionar pontuaÿÿo
+        // 1) adicionar pontuaï¿½ï¿½o
         if (GameManagerUI.Instance != null)
             GameManagerUI.Instance.AddScore(scoreValue);
 
-        // 4) spawn popup de pontuaÿÿo na mesma posiÿÿo e faz ele sumir em 2s
+        // 4) spawn popup de pontuaï¿½ï¿½o na mesma posiï¿½ï¿½o e faz ele sumir em 2s
         if (scorePopupPrefab != null)
         {
             RectTransform popupParent = spawnParent ? spawnParent : (rt.parent as RectTransform);
@@ -196,8 +196,8 @@ public class BubbleUI : MonoBehaviour
             var popupRt = popup.GetComponent<RectTransform>();
             popupRt.anchoredPosition = localPoint;
 
-            // configura queda + duraÿÿo 2s
-            popup.SetActive(true); // garante que estÿ ativo
+            // configura queda + duraï¿½ï¿½o 2s
+            popup.SetActive(true); // garante que estï¿½ ativo
             var popupFall = popup.AddComponent<FallUI>();
             popupFall.velocity = new Vector2(0f, 300f);
             popupFall.gravity = 0f;
@@ -205,28 +205,39 @@ public class BubbleUI : MonoBehaviour
             popupFall.angularVelocity = 0f;
         }
 
-        // 2) opcional: spawn de explosÿo (visual) na posiÿÿo da bolha
+        // 2) opcional: spawn de explosï¿½o (visual) na posiï¿½ï¿½o da bolha
         if (explosionPrefab != null && spawnParent != null)
         {
-            var expl = Instantiate(explosionPrefab, spawnParent);
-            var explRt = expl.GetComponent<RectTransform>();
-            // posiciona na mesma posiÿÿo visual da bolha
-            explRt.position = rt.position;
-            Destroy(expl, 0.6f);
+            RectTransform vfxParent = spawnParent ? spawnParent : (rt.parent as RectTransform);
+
+            GameObject vfx = Instantiate(explosionPrefab, vfxParent);
+            RectTransform vfxRt = vfx.GetComponent<RectTransform>();
+
+            if (vfxRt != null)
+            {
+                vfxRt.position = rt.position; // mesma posiÃ§Ã£o da bolha
+                vfxRt.localScale = Vector3.one;
+            }
+            else
+            {
+                vfx.transform.position = rt.position;
+            }
+
+            Destroy(vfx, 1f);
         }
         Destroy(productImage.gameObject);
         // 3) destacar o filho (productImage) e faz?-lo cair com FallUI
         if (productImage != null)
         {
-            // garante que nÿo capture cliques apÿs soltar
+            // garante que nï¿½o capture cliques apï¿½s soltar
             productImage.raycastTarget = false;
 
-            // guarda posiÿÿo mundial atual
+            // guarda posiï¿½ï¿½o mundial atual
             Vector3 worldPos = productImage.transform.position;
 
             // reparent para spawnParent (ou para o pai atual se spawnParent nulo)
             RectTransform newParent = spawnParent ? spawnParent : (rt.parent as RectTransform);
-            productImage.transform.SetParent(newParent, true); // preserva posiÿÿo mundial
+            productImage.transform.SetParent(newParent, true); // preserva posiï¿½ï¿½o mundial
 
             // corrigir anchoredPosition para o novo parent (mais robusto)
             Canvas canvas = newParent.GetComponentInParent<Canvas>();
@@ -235,16 +246,16 @@ public class BubbleUI : MonoBehaviour
             RectTransformUtility.ScreenPointToLocalPointInRectangle(newParent, screenPoint, cam, out Vector2 localPoint);
             productImage.rectTransform.anchoredPosition = localPoint;
 
-            // adiciona FallUI para simular queda com forÿa (objeto pesado)
+            // adiciona FallUI para simular queda com forï¿½a (objeto pesado)
             var fall = productImage.gameObject.AddComponent<FallUI>();
             fall.enabled = true;
             fall.velocity = new Vector2(Random.Range(-50f, 50f), -900f); // velocidade inicial forte para baixo
-            fall.gravity = 3000f;   // aceleraÿÿo
-            fall.lifetime = 5f;     // destrÿi depois se cair fora da tela
-            fall.angularVelocity = Random.Range(-120f, 120f); // rotaÿÿo opcional
+            fall.gravity = 3000f;   // aceleraï¿½ï¿½o
+            fall.lifetime = 5f;     // destrï¿½i depois se cair fora da tela
+            fall.angularVelocity = Random.Range(-120f, 120f); // rotaï¿½ï¿½o opcional
         }
 
-        // 5) destruir a bolha (o filho jÿ foi reparentado, entÿo nÿo serÿ destruÿdo)
+        // 5) destruir a bolha (o filho jï¿½ foi reparentado, entï¿½o nï¿½o serï¿½ destruï¿½do)
         Destroy(gameObject);
     }
 }
