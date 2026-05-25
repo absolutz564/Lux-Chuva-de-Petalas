@@ -18,6 +18,9 @@ public class GameManagerUI : MonoBehaviour
     [SerializeField] private GameObject      countdownPanel;
     [SerializeField] private TextMeshProUGUI countdownText;
 
+    [Header("Debug")]
+    [SerializeField] private bool mockMode = false;
+
     public static GameManagerUI Instance;
 
     public TextMeshProUGUI timerText;
@@ -93,20 +96,21 @@ public class GameManagerUI : MonoBehaviour
             }
         }
 
-#if UNITY_EDITOR
-        // Fallback de mouse para testar no Editor sem o hand tracker ativo
-        if (Input.GetMouseButtonDown(0))
+        if (mockMode && Input.GetMouseButtonDown(0))
             HandleTouch(Input.mousePosition);
-#endif
     }
 
     void HandleCountdown()
     {
-        bool twoHands = HandTracker.Instance != null && HandTracker.Instance.HandCount >= 2;
+        if (mockMode)
+        {
+            _gameStarted = true;
+            gameActive   = true;
+            if (countdownPanel != null) countdownPanel.SetActive(false);
+            return;
+        }
 
-#if UNITY_EDITOR
-        if (Input.GetKeyDown(KeyCode.Space)) twoHands = true;
-#endif
+        bool twoHands = HandTracker.Instance != null && HandTracker.Instance.HandCount >= 2;
 
         if (twoHands)
             _twoHandsTimer += Time.deltaTime;
