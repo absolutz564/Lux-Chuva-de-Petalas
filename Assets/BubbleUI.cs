@@ -20,6 +20,7 @@ public class BubbleUI : MonoBehaviour
     public Sprite spriteScoreMore1;
     public Sprite spriteScoreMore2;
     public Sprite spriteScoreMore3;
+    public Sprite spriteScoreMore5;
     public Sprite spriteScoreLess1;
     public Sprite spriteScoreLess2;
     public Sprite spriteScoreLess3;
@@ -155,6 +156,7 @@ public class BubbleUI : MonoBehaviour
                 case 1: return spriteScoreMore1;
                 case 2: return spriteScoreMore2;
                 case 3: return spriteScoreMore3;
+                case 5: return spriteScoreMore5;
             }
         }
         else if (value < 0)

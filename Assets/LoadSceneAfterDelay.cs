@@ -6,11 +6,18 @@ public class LoadSceneAfterDelay : MonoBehaviour
 {
     [Header("Config")]
     public float delaySeconds = 8f; // tempo de espera
-    public int sceneIndex = 0;      // índice da cena a ser carregada
+    public int sceneIndex = 0;      // ï¿½ndice da cena a ser carregada
+    public bool isLoadAfterDelay = false;
 
     private void Start()
     {
-        StartCoroutine(LoadSceneCoroutine());
+        if (isLoadAfterDelay) {
+            StartCoroutine(LoadSceneCoroutine());
+        }
+    }
+
+    public void LoadNextScene() {
+        SceneManager.LoadScene(sceneIndex);            // carrega a cena
     }
 
     private IEnumerator LoadSceneCoroutine()

@@ -267,6 +267,7 @@ MonoBehaviour:
   spriteScoreMore1: {fileID: 21300000, guid: 83c3b703e6cb5a74fa76d36ee890ed5e, type: 3}
   spriteScoreMore2: {fileID: 21300000, guid: 4f8248c45a6d7244f889c6a194466b42, type: 3}
   spriteScoreMore3: {fileID: 21300000, guid: 392f2a676f2bf574686711a2873de1b4, type: 3}
+  spriteScoreMore5: {fileID: 21300000, guid: 6d157008180086648aef4bd46d66fd42, type: 3}
   spriteScoreLess1: {fileID: 21300000, guid: 676877bb7525cb24298b330c5a323f9a, type: 3}
   spriteScoreLess2: {fileID: 21300000, guid: 98244c23ee4b91c44bd09a9978578597, type: 3}
   spriteScoreLess3: {fileID: 21300000, guid: 4728668be5a4e9742a8dae5a6c33737e, type: 3}
