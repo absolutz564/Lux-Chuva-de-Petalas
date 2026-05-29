@@ -14,6 +14,10 @@ public class BubbleUI : MonoBehaviour
     public int scoreValue = 1;
     public float bubbleSpeed = 180f; // pixels/s
 
+    [Header("Audio")]
+    public AudioClip burstSound;
+    [Range(0f, 1f)] public float burstVolume = 1f;
+
     [Header("Prefabs")]
     public GameObject scorePopupPrefab; // prefab do +1/+2 (UI Image/Text)
     public GameObject explosionPrefab;  // opcional: anima��o de explos�o (UI/particle)
@@ -180,6 +184,9 @@ public class BubbleUI : MonoBehaviour
 
     public void BurstAndRelease()
     {
+        if (burstSound != null)
+            AudioSource.PlayClipAtPoint(burstSound, Camera.main.transform.position, burstVolume);
+
         // 1) adicionar pontua��o
         if (GameManagerUI.Instance != null)
             GameManagerUI.Instance.AddScore(scoreValue);

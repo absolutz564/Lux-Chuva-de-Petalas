@@ -262,6 +262,8 @@ MonoBehaviour:
   productImage: {fileID: 8826205786539134750}
   scoreValue: 2
   bubbleSpeed: 150
+  burstSound: {fileID: 8300000, guid: 938a0df12310954439a40de50b5db0aa, type: 3}
+  burstVolume: 1
   scorePopupPrefab: {fileID: 2629006929304702700}
   explosionPrefab: {fileID: 2652895794093518626}
   spriteScoreMore1: {fileID: 21300000, guid: 83c3b703e6cb5a74fa76d36ee890ed5e, type: 3}
