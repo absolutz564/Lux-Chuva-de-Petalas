@@ -29,7 +29,15 @@ public class GameManagerUI : MonoBehaviour
     public GameObject gameOverPanelLoss;
     public GameObject Spawner;
 
-    private float timeRemaining = 30f;
+    [Header("UI Score nos panels Win/Loss")]
+    public TextMeshProUGUI panelWinScoreText;
+    public TextMeshProUGUI panelLossScoreText;
+
+    [Header("Game duration fallback (usado se a API não responder)")]
+    public float defaultDurationSec = 30f;
+
+    private float timeRemaining;     // setado quando a partida inicia (usa duração da API)
+    private float roundStartTime;    // pra medir duração real
     public int score = 0;
     public bool gameActive    = false;
     private bool  _gameStarted     = false;
@@ -55,12 +63,20 @@ public class GameManagerUI : MonoBehaviour
     void Start()
     {
         AssignRandomSprite();
+        timeRemaining = ResolveDuration();
         timerText.text = Mathf.CeilToInt(timeRemaining).ToString();
         scoreText.text = "0";
         if (countdownText != null)
             countdownText.text = "Mostre as duas mãos\npara começar";
         if (countdownPanel != null)
             countdownPanel.SetActive(true);
+    }
+
+    float ResolveDuration()
+    {
+        if (ApiController.Instance != null && ApiController.Instance.CurrentGameDurationSec > 0)
+            return ApiController.Instance.CurrentGameDurationSec;
+        return defaultDurationSec;
     }
 
     void Update()
@@ -104,6 +120,8 @@ public class GameManagerUI : MonoBehaviour
     {
         if (mockMode)
         {
+            timeRemaining = ResolveDuration();
+            roundStartTime = Time.time;
             _gameStarted = true;
             gameActive   = true;
             if (countdownPanel != null) countdownPanel.SetActive(false);
@@ -135,6 +153,8 @@ public class GameManagerUI : MonoBehaviour
 
         if (_countdown <= 0f)
         {
+            timeRemaining = ResolveDuration();
+            roundStartTime = Time.time;
             _gameStarted = true;
             gameActive   = true;
             if (countdownPanel != null)
@@ -178,16 +198,44 @@ public class GameManagerUI : MonoBehaviour
     {
         Destroy(Spawner);
 
-        if (score >= 50)
+        if (PrizeManager.Instance == null)
         {
-            gameOverPanelWin.SetActive(true);
-            gameOverPanelWin.GetComponentInChildren<TextMeshProUGUI>().text = "Pontuação: " + score;
+            Debug.LogError("[GameManagerUI] PrizeManager.Instance ausente — não dá pra premiar. Verifique se o PrizeManager está na cena.");
+            ShowLossPanel("offline");
+            return;
         }
-        else
+
+        // Servidor decide se ganhou prêmio (tier + estoque). Cliente só reporta o score.
+        PrizeManager.Instance.OnPrizeAwarded.RemoveAllListeners();
+        PrizeManager.Instance.OnNoPrize.RemoveAllListeners();
+
+        PrizeManager.Instance.OnPrizeAwarded.AddListener(gift =>
         {
-            gameOverPanelLoss.SetActive(true);
-            gameOverPanelLoss.GetComponentInChildren<TextMeshProUGUI>().text = "Pontuação: " + score;
-        }
+            ShowWinPanel();
+        });
+        PrizeManager.Instance.OnNoPrize.AddListener(reason =>
+        {
+            ShowLossPanel(reason);
+        });
+
+        PrizeManager.LastGameDurationSeconds = Time.time - roundStartTime;
+        int scoreToSend = Mathf.Max(0, score);
+        PrizeManager.Instance.AwardPrize(score: scoreToSend);
+    }
+
+    void ShowWinPanel()
+    {
+        gameOverPanelWin.SetActive(true);
+        if (panelWinScoreText != null) panelWinScoreText.text = "" + score;
+        else gameOverPanelWin.GetComponentInChildren<TextMeshProUGUI>().text = "" + score;
+    }
+
+    void ShowLossPanel(string reason)
+    {
+        gameOverPanelLoss.SetActive(true);
+        if (panelLossScoreText != null) panelLossScoreText.text = "" + score;
+        else gameOverPanelLoss.GetComponentInChildren<TextMeshProUGUI>().text = "" + score;
+        Debug.Log($"[GameManagerUI] Sem prêmio. Motivo: {reason}");
     }
 
     public void RestartGame() => UnityEngine.SceneManagement.SceneManager.LoadScene(1);
